@@ -51,7 +51,7 @@ import os
 import urllib.request
 import argparse
 
-import creds  # you must create creds.py
+import config.creds as creds  # you must create creds.py
 
 
 def get_api():
@@ -68,60 +68,64 @@ def main(args):
 
     if download_media:
         print("Download media is active")
-        if not os.path.exists('downloaded'):
-            os.makedirs('downloaded')
+        if not os.path.exists('./data/downloaded'):
+            os.makedirs('./data/downloaded')
     count = 0
-    with dbm.open('favs.db', 'c') as db, open('favs.ndjson', 'at', buffering=1) as jsonfile:
-        for status in tweepy.Cursor(api.get_favorites, screen_name=creds.username,
-                                    count=200, include_entities=True, tweet_mode='extended').items():
-            count = count + 1
-            print(count)
-            status_id = str(status.id)
-            status_json = json.dumps(status._json)
-            if status_id not in db:
-                if download_media:
-                    #media download
-                    media_files=[]
-                    try:
-                        media = status.extended_entities.get('media', [])
-                        if len(media) > 0:
-                            if 'video_info' in media[0]:
-                                videourl=""
-                                for v in media[0]['video_info']['variants']:
-                                    if v['content_type']=="video/mp4":
-                                        videourl=v['url']
-                                if len(videourl)>0:
-                                    #grabbing last video in list that is mp4 (best bitrate)
-                                    media_files.append(videourl)
-                            else:
-                                for m in media:
-                                    media_files.append(m['media_url'])
-                        media_files.append(m['media_url'])
-                    except:
-                        print("No extended entities, skipping.....")
-                    
-                    for media_file in media_files:
-                        print("MEDIA",media_file)
-                        filename=media_file.split("/")[-1]
-                        if "?" in filename:
-                            filename=filename.split("?")[0]
-                        urllib.request.urlretrieve(media_file, "downloaded/"+filename)
-                    
+    with dbm.open('./data/favs.db', 'c') as db, open('./data/favs.ndjson', 'at', buffering=1) as jsonfile:
+        while args.l:
+            for status in tweepy.Cursor(api.get_favorites, screen_name=creds.username,
+                                        count=200, include_entities=True, tweet_mode='extended').items():
+                count = count + 1
+                print(count)
+                status_id = str(status.id)
+                status_json = json.dumps(status._json)
+                if status_id not in db:
+                    if download_media:
+                        #media download
+                        media_files=[]
+                        try:
+                            media = status.extended_entities.get('media', [])
+                            if len(media) > 0:
+                                if 'video_info' in media[0]:
+                                    videourl=""
+                                    for v in media[0]['video_info']['variants']:
+                                        if v['content_type']=="video/mp4":
+                                            videourl=v['url']
+                                    if len(videourl)>0:
+                                        #grabbing last video in list that is mp4 (best bitrate)
+                                        media_files.append(videourl)
+                                else:
+                                    for m in media:
+                                        media_files.append(m['media_url'])
+                            media_files.append(m['media_url'])
+                        except:
+                            print("No extended entities, skipping.....")
+                        
+                        for media_file in media_files:
+                            print("MEDIA",media_file)
+                            filename=media_file.split("/")[-1]
+                            if "?" in filename:
+                                filename=filename.split("?")[0]
+                            urllib.request.urlretrieve(media_file, "./data/downloaded/"+filename)
+                        
 
-                db[status_id] = status_json
-                jsonfile.write(status_json + "\n")
-            else:
-                print(status_id + " exists in db")
+                    db[status_id] = status_json
+                    jsonfile.write(status_json + "\n")
+                else:
+                    print(status_id + " exists in db")
 
-            # twitter rate-limits us to 15 requests / 15 minutes, so
-            # space this out a bit to avoid a super-long sleep at the
-            # end which could lose the connection.
-            time.sleep(60 * 15 / (15 * 200))
-        print('Done.')
+                # twitter rate-limits us to 15 requests / 15 minutes, so
+                # space this out a bit to avoid a super-long sleep at the
+                # end which could lose the connection.
+                time.sleep(60 * 15 / (15 * 200))
+            print('Done.')
+            time.sleep(args.l)
+
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Get favourites from Twitter')
     parser.add_argument('-m',  action='store_true',help='download all media in each post (photos and video)')
+    parser.add_argument('-l',  help='loop delay')
     args = parser.parse_args()
     main(args)
